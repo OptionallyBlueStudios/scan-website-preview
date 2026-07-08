@@ -24,7 +24,7 @@ jobs:
         run: |
           # 1. Add the upstream repository
           # CHANGE THIS to the actual upstream repository URL
-          git remote add upstream https://github.com/ORIGINAL_OWNER/ORIGINAL_REPO.git
+          git remote add upstream https://github.com/OptionallyBlueStudios/scan-website.git
           
           # 2. Fetch all branches and histories from upstream
           git fetch upstream --prune
