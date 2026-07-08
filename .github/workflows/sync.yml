@@ -1,14 +1,12 @@
-name: Sync All Branches from Upstream
+name: Auto-Sync Branches from Upstream
 
 on:
   schedule:
-    # Runs every hour (adjust the cron schedule if you want it more/less frequent)
-    - cron: '0 * * * *'
+    - cron: '0 * * * *' # Runs every hour
   workflow_dispatch: # Allows you to trigger this manually from the Actions tab
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   sync:
@@ -17,30 +15,27 @@ jobs:
       - name: Checkout Fork
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0 # Fetches full history so merging works correctly
 
-      - name: Sync Local Remotes with Upstream
+      - name: Sync and Merge from Upstream
         run: |
-          # 1. Add the upstream repository
-          # CHANGE THIS to the actual upstream repository URL
+          # 1. Configure the GitHub Actions Bot Identity
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # 2. Add the upstream repository 
+          # REPLACE THIS with your actual upstream repository URL
           git remote add upstream https://github.com/OptionallyBlueStudios/scan-website.git
-          
-          # 2. Fetch all branches and histories from upstream
           git fetch upstream --prune
 
-      - name: Detect Changes and Create PRs
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Get a list of all remote branches from upstream
-          # Removes the 'upstream/' prefix to get just the branch name
+          # 3. Get a list of all remote branches from upstream
           branches=$(git branch -r | grep 'upstream/' | grep -v 'HEAD' | sed 's/  upstream\///')
 
           for branch in $branches; do
-            echo "Checking branch: $branch"
+            echo "------------------------------------------------------"
+            echo "Processing branch: $branch"
             
-            # Check if this branch even exists in our fork yet
+            # Check if this branch exists in our fork yet
             if ! git show-ref --verify --quiet refs/remotes/origin/$branch; then
               echo "New branch detected upstream: $branch. Creating it on fork."
               git checkout -b $branch upstream/$branch
@@ -48,35 +43,25 @@ jobs:
               continue
             fi
 
-            # If it exists, check if upstream has new commits that the fork doesn't have
+            # Check if upstream has new commits that our fork doesn't have
             UPSTREAM_COMMIT=$(git rev-parse upstream/$branch)
             FORK_COMMIT=$(git rev-parse origin/$branch)
 
             if [ "$UPSTREAM_COMMIT" != "$FORK_COMMIT" ]; then
-              echo "Updates found on upstream branch: $branch"
+              echo "Updates found upstream for branch: $branch. Attempting auto-merge..."
               
-              # Create a temporary sync branch on your fork to hold the upstream changes
-              SYNC_BRANCH="sync-upstream-${branch}"
-              
-              # Delete the sync branch if it left over from a failed run
-              git push origin --delete $SYNC_BRANCH 2>/dev/null || true
-              
-              # Checkout the upstream code into the sync branch and push to fork
-              git checkout -b $SYNC_BRANCH upstream/$branch
-              git push origin $SYNC_BRANCH
+              # Checkout our fork's local version of the branch
+              git checkout $branch
+              git pull origin $branch
 
-              # Use the GitHub CLI (built into the runner) to check if a PR already exists
-              PR_EXISTS=$(gh pr list --head $SYNC_BRANCH --base $branch --state open --json number -q '.[0].number')
-
-              if [ -z "$PR_EXISTS" ]; then
-                echo "Opening Pull Request for $branch..."
-                gh pr create \
-                  --title "🔄 Upstream Updates Detected for branch: $branch" \
-                  --body "Automated workflow detected new commits upstream on the \`$branch\` branch. Review and merge to keep your fork synced." \
-                  --base $branch \
-                  --head $SYNC_BRANCH
+              # Attempt to merge upstream changes directly into it
+              if git merge upstream/$branch --no-edit; then
+                echo "Successfully merged updates for $branch! Pushing to fork..."
+                git push origin $branch
               else
-                echo "PR already exists for $branch (PR #$PR_EXISTS). Skipping PR creation."
+                echo "⚠️ MERGE CONFLICT DETECTED on branch $branch."
+                echo "Skipping push. You will need to resolve this conflict manually."
+                git merge --abort
               fi
             else
               echo "Branch $branch is already up to date."
