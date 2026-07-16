@@ -148,52 +148,6 @@
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
 
-    const consentManagerScript = document.querySelector('script[src*="consent-manager"]');
-    const glitchtipDsn = consentManagerScript?.getAttribute("data-glitchtip-dsn") || "";
-
-    function initGlitchTipDiagnostics() {
-      if (!glitchtipDsn) {
-        console.warn("[GlitchTip] No DSN found on the consent manager script tag.");
-        return;
-      }
-
-      const sentryScript = document.createElement("script");
-      sentryScript.src = "https://browser.sentry-cdn.com/10.65.0/bundle.min.js";
-      sentryScript.crossOrigin = "anonymous";
-      sentryScript.integrity = "sha384-d3YaoAU3tHG6Fp+i9wDLHT6HoknMt4cUZYob+LhIw2Z7SNMubeealjekiA4fR3h8";
-      sentryScript.onload = function () {
-        console.log("[GlitchTip] SDK loaded");
-        console.log("[GlitchTip] DSN:", glitchtipDsn);
-
-        if (!window.Sentry) {
-          console.error("[GlitchTip] Sentry object is unavailable after script load.");
-          return;
-        }
-
-        window.Sentry.init({
-          dsn: glitchtipDsn,
-          autoSessionTracking: false,
-          environment: "production",
-          enabled: true,
-          sendClientReports: true
-        });
-
-        console.log("[GlitchTip] Sentry initialized");
-        console.log("[GlitchTip] Sentry object:", window.Sentry);
-
-        window.Sentry.captureException(new Error("GlitchTip test error"));
-        window.Sentry.flush(10000).then((result) => {
-          console.log("[GlitchTip] Flush complete:", result);
-        });
-        console.log("[GlitchTip] Test event sent");
-      };
-      sentryScript.onerror = function () {
-        console.error("[GlitchTip] Failed to load Sentry SDK.");
-      };
-
-      document.head.appendChild(sentryScript);
-    }
-
     const newsContainer = document.getElementById("itch-news-list");
     if (newsContainer) {
       const itchRssUrl = "https://optionallybluestudios.itch.io/scangame/devlog.rss";
@@ -254,11 +208,6 @@
       fetchDevlog();
     }
 
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", initGlitchTipDiagnostics, { once: true });
-    } else {
-      initGlitchTipDiagnostics();
-    }
   </script>
 </body>
 </html>
